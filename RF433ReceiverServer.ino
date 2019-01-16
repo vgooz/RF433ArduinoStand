@@ -95,7 +95,7 @@ void requestEvent()
   dataI2C.received = pkgReceived;
   dataI2C.lost = pkgLost;
   uint8_t buf[buflenI2C];
-  memcpy(&buf, &dataI2C, buflenI2C);
+  CopyPackageI2CtoBuffer(buf);
   for (int i=0; i<buflenI2C; i++) TinyWireS.send(buf[i]);
 }
 
@@ -104,7 +104,7 @@ void loop()
   vw_wait_rx();
   if (vw_get_message(buf, &buflenRX)) // Non-blocking
   {
-    memcpy(&dataRX, &buf, buflenRX);
+    CopyBufferToPackageRX(buf);
     if (dataRX.sender != prevSender || dataRX.session != prevSession)
     {
       PORTB |= (1 << PB1);      //replaces digitalWrite(pinLED, HIGH);
@@ -127,4 +127,29 @@ void loop()
     else if (prevIteration > dataRX.iteration && repeatTX - prevIteration + dataRX.iteration > 1) pkgLost = repeatTX - prevIteration + dataRX.iteration - 1;
     prevIteration = dataRX.iteration;
   }
+}
+
+void CopyBufferToPackageRX(uint8_t *arr)
+{
+  dataRX.sender = arr[0];   
+  dataRX.session = arr[1];
+  dataRX.iteration = arr[2];
+  dataRX.data1 = arr[3] | arr[4] << 8;
+  dataRX.data2 = arr[5] | arr[6] << 8;
+  dataRX.data3 = arr[7] | arr[8] << 8;
+}
+
+void CopyPackageI2CtoBuffer(uint8_t *arr)
+{
+  arr[0] = dataI2C.sender;
+  arr[1] = dataI2C.session;
+  arr[2] = dataI2C.iteration;
+  arr[3] = dataI2C.received;
+  arr[4] = dataI2C.lost;
+  arr[5] = dataI2C.data1 & 0xff;
+  arr[6] = (dataI2C.data1 >> 8) & 0xff;
+  arr[7] = dataI2C.data2 & 0xff;
+  arr[8] = (dataI2C.data2 >> 8) & 0xff;
+  arr[9] = dataI2C.data3 & 0xff;
+  arr[10] = (dataI2C.data3 >> 8) & 0xff;
 }

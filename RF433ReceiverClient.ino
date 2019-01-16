@@ -1,7 +1,6 @@
 //A4(SDA), A5(SCL)
 #include <Wire.h>
 
-
 #define pinLED    13
 #define pinRXINT  2
 #define I2C_ADDR  9
@@ -57,8 +56,7 @@ void loop()
       {
         uint8_t buf[sizeof(data)];
         for (int i = 0; i < buflen; i++) buf[i] = Wire.read();
-                
-        memcpy(&data, &buf, buflen);
+        CopyBufferToPackage(buf);
         Serial.print("Received package! buflen: ");
         Serial.print(buflen);
         Serial.print("; bytes: ");
@@ -99,4 +97,16 @@ void loop()
     digitalWrite(pinLED, LOW);
     timeLED = 0;
   }
+}
+
+void CopyBufferToPackage(uint8_t *arr)
+{
+  data.sender = arr[0];   
+  data.session = arr[1];
+  data.iteration = arr[2];
+  data.received = arr[3];
+  data.lost = arr[4];
+  data.data1 = arr[5] | arr[6] << 8;
+  data.data2 = arr[7] | arr[8] << 8;
+  data.data3 = arr[9] | arr[10] << 8;
 }

@@ -16,7 +16,8 @@ struct package
 
 typedef struct package Package;
 Package data;
-uint8_t dataLen = sizeof(data);
+uint8_t buflen = sizeof(data);
+uint8_t buf[sizeof(data)];
 
 void setup() {
   pinMode(pinLED, OUTPUT);
@@ -34,7 +35,8 @@ void loop() {
   digitalWrite(pinLED, HIGH);
   while (data.iteration < repeatTX)
   {
-    vw_send((uint8_t *)&data, sizeof(data));
+    CopyPackagetoBuffer(buf);
+    vw_send((uint8_t *)&buf, buflen);
     vw_wait_tx();
     data.iteration++;
     data.data3++;
@@ -45,4 +47,17 @@ void loop() {
   data.data1 = random(32767);
   data.data2 = random(32767);
   delay(5000);
+}
+
+void CopyPackagetoBuffer(uint8_t *arr)
+{
+  arr[0] = data.sender;
+  arr[1] = data.session;
+  arr[2] = data.iteration;
+  arr[3] = data.data1 & 0xff;
+  arr[4] = (data.data1 >> 8) & 0xff;
+  arr[5] = data.data2 & 0xff;
+  arr[6] = (data.data2 >> 8) & 0xff;
+  arr[7] = data.data3 & 0xff;
+  arr[8] = (data.data3 >> 8) & 0xff;
 }

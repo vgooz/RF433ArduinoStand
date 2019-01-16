@@ -3,51 +3,21 @@
 #include <VirtualWire.h>
 #include <TinyWireS.h>
 
-#define pinLED   1
-#define pinRX    3
-#define pinRXINT 4
-#define repeatTX 33
-#define I2C_ADDR 9
+#define pinLED    1
+#define pinRX     3
+#define pinRXINT  4
+#define repeatTX  33
+#define I2C_ADDR  9
+#define rxBufLen  9
+#define i2cBufLen 11
 
 volatile unsigned long timeRXINT = 0;
 
 uint8_t prevSender = 0;
 uint8_t prevSession = 0;
 uint8_t prevIteration = 0;
-uint8_t pkgReceived = 0;
-uint8_t pkgLost = 0;
 
-struct packagerx
-{
-  uint8_t sender;
-  uint8_t session;
-  uint8_t iteration;
-  int16_t data1;
-  int16_t data2;
-  int16_t data3;
-};
-
-struct packagei2c
-{
-  uint8_t sender;
-  uint8_t session;
-  uint8_t iteration;
-  uint8_t received;
-  uint8_t lost;
-  int16_t data1;
-  int16_t data2;
-  int16_t data3;
-};
-
-typedef struct packagerx PackageRX;
-PackageRX dataRX;
-
-typedef struct packagei2c PackageI2C;
-PackageI2C dataI2C;
-
-uint8_t buflenRX = sizeof(dataRX);
-uint8_t buf[sizeof(dataRX)];
-uint8_t buflenI2C = sizeof(dataI2C);
+uint8_t bufI2C[i2cBufLen];
 
 void setup() {
   DDRB |= (1 << PB1);      //replaces pinMode(pinLED, OUTPUT);
@@ -92,64 +62,42 @@ void setup_watchdog(int ii)
 
 void requestEvent()
 {
-  dataI2C.received = pkgReceived;
-  dataI2C.lost = pkgLost;
-  uint8_t buf[buflenI2C];
-  CopyPackageI2CtoBuffer(buf);
-  for (int i=0; i<buflenI2C; i++) TinyWireS.send(buf[i]);
+  for (int i=0; i<i2cBufLen; i++) TinyWireS.send(bufI2C[i]);
 }
 
 void loop()
 {
   vw_wait_rx();
-  if (vw_get_message(buf, &buflenRX)) // Non-blocking
+  
+  uint8_t buflen = rxBufLen;
+  uint8_t buf[rxBufLen];
+
+  if (vw_get_message(buf, &buflen)) // Non-blocking
   {
-    CopyBufferToPackageRX(buf);
-    if (dataRX.sender != prevSender || dataRX.session != prevSession)
+    if (buf[0] != prevSender || buf[1] != prevSession)
     {
       PORTB |= (1 << PB1);      //replaces digitalWrite(pinLED, HIGH);
       PORTB |= (1 << PB4);      //replaces digitalWrite(pinRXINT, HIGH);
       timeRXINT = millis();
-      prevSender = dataRX.sender;
-      prevSession = dataRX.session;
+      
+      bufI2C[0] = buf[0];   //sender
+      bufI2C[1] = buf[1];   //session
+      bufI2C[2] = buf[2];   //iteration
+      bufI2C[3] = 0;          //packages received
+      bufI2C[4] = 0;          //packages lost
+      bufI2C[5] = buf[3];   //data1 1'st byte
+      bufI2C[6] = buf[4];   //data1 2'nd byte
+      bufI2C[7] = buf[5];   //data2 1'st byte
+      bufI2C[8] = buf[6];   //data2 2'nd byte
+      bufI2C[9] = buf[7];   //data3 1'st byte
+      bufI2C[10] = buf[8];   //data3 2'nd byte
+      prevSender = buf[0];
+      prevSession = buf[1];
       prevIteration = 0;
-      pkgReceived = 0;
-      pkgLost = 0;
-      dataI2C.sender = dataRX.sender;
-      dataI2C.session = dataRX.session;
-      dataI2C.iteration = dataRX.iteration;
-      dataI2C.data1 = dataRX.data1;
-      dataI2C.data2 = dataRX.data2;
-      dataI2C.data3 = dataRX.data3;
     }
-    pkgReceived++;
-    if (prevIteration < dataRX.iteration && dataRX.iteration - prevIteration > 1) pkgLost = dataRX.iteration - prevIteration - 1;
-    else if (prevIteration > dataRX.iteration && repeatTX - prevIteration + dataRX.iteration > 1) pkgLost = repeatTX - prevIteration + dataRX.iteration - 1;
-    prevIteration = dataRX.iteration;
+    bufI2C[3]++;
+    if (prevIteration < buf[2] && buf[2] - prevIteration > 1) bufI2C[4] = buf[2] - prevIteration - 1;
+    else if (prevIteration > buf[2] && repeatTX - prevIteration + buf[2] > 1) bufI2C[4] = repeatTX - prevIteration + buf[2] - 1;
+    prevIteration = buf[2];
   }
-}
-
-void CopyBufferToPackageRX(uint8_t *arr)
-{
-  dataRX.sender = arr[0];   
-  dataRX.session = arr[1];
-  dataRX.iteration = arr[2];
-  dataRX.data1 = arr[3] | arr[4] << 8;
-  dataRX.data2 = arr[5] | arr[6] << 8;
-  dataRX.data3 = arr[7] | arr[8] << 8;
-}
-
-void CopyPackageI2CtoBuffer(uint8_t *arr)
-{
-  arr[0] = dataI2C.sender;
-  arr[1] = dataI2C.session;
-  arr[2] = dataI2C.iteration;
-  arr[3] = dataI2C.received;
-  arr[4] = dataI2C.lost;
-  arr[5] = dataI2C.data1 & 0xff;
-  arr[6] = (dataI2C.data1 >> 8) & 0xff;
-  arr[7] = dataI2C.data2 & 0xff;
-  arr[8] = (dataI2C.data2 >> 8) & 0xff;
-  arr[9] = dataI2C.data3 & 0xff;
-  arr[10] = (dataI2C.data3 >> 8) & 0xff;
 }

@@ -78,7 +78,10 @@ void loop()
         Serial.print("; Data3: ");
         Serial.print(data.data3);
         Serial.print("; Quality: ");
-        Serial.print(((float)data.received / (float)(data.received + data.lost)) * 100.0);
+        if (data.received + data.lost > 0)
+          Serial.print(((float)data.received / (float)(data.received + data.lost)) * 100.0);
+        else
+          Serial.print("0.00");
         Serial.println("%");
       }
       else
